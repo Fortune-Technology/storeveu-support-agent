@@ -1,0 +1,55 @@
+# Storeveu Support — branding + baked-config contract (Phase 1)
+#
+# Declarative source of truth consumed by the fork's build patch. The patch
+# (version-locked against the pinned RUSTDESK_REF in the fork) maps each value
+# below onto the corresponding RustDesk source constant / asset.
+
+[identity]
+app_name        = "Storeveu Support"
+window_title    = "Storeveu Support"
+company         = "Storeveu"
+# Replace upstream RustDesk icons/logo with Storeveu assets in the fork:
+#   ./branding/assets/icon.ico, logo.png  (added in the fork repo)
+
+[server]                       # Phase 0 server (74.208.78.255), addressed by hostname
+rendezvous      = "support-relay.storeveu.com"
+relay           = "support-relay.storeveu.com:21117"
+public_key      = "Idwk2r8dLqiPRbFE1OexmsFtAcdn2huqqF9k17DcqY0="
+# Hostname (not raw IP) so a future server move = a DNS edit, no agent re-ship.
+# Requires: (a) A record support-relay.storeveu.com -> 74.208.78.255
+#           (b) server hbbs re-run with this hostname (setup.sh <hostname>) so
+#               the advertised relay is also the hostname.
+# Hard-coded so a store cannot repoint it and needs zero setup.
+allow_user_override = false
+
+[access]                       # PCI: consent-only, no unattended access
+permanent_password   = "disabled"   # never a static/baked password
+require_accept_prompt = true         # on-site consent gate
+one_time_code        = true          # generated on demand; POS-triggered in Phase 2
+direct_ip_access     = false
+
+[privacy]                      # PCI Req 3 — PAN/PIN never captured
+# Phase 4 hardening, applied in the FORK build (RustDesk privacy mode /
+# window-exclusion) — NOT implementable in the monorepo; the backend never
+# sees pixels. The rebranded client must blackout the card-entry + PIN-pad
+# window in BOTH the live stream and the recording. RustDesk supports a
+# privacy/blackout mode + window exclusion; the fork's branding patch wires
+# the POS card-entry window title/class into the exclusion list and forces
+# privacy mode on while the tender/PIN surface is focused.
+mask_card_entry_window = true
+mask_in_recording      = true
+# Backend retention: recordings are bounded by the Phase 3 per-store quota
+# (10 GiB rolling-evict-oldest; audit row is KEPT, only media rolls off).
+# A time-based auto-purge (e.g. delete media > N days) is a future add-on —
+# the quota already bounds storage so it is not required for launch.
+
+[deployment]
+install_mode    = "windows-service"  # survives POS crash; separate from cashier app
+autostart       = true
+tray_ui         = "minimal"          # connect-code + accept/deny + active banner only
+silent_install  = true               # bundled installer drops it; store does nothing
+
+[license]
+upstream        = "rustdesk/rustdesk"
+spdx            = "AGPL-3.0-only"
+source_offer    = "../SOURCE_OFFER.md"   # MUST ship in installer + About screen

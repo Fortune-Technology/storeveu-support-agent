@@ -1,0 +1,147 @@
+# TEMPLATE — bootstrap-fork.ps1 drops this into the fork as
+#            .github/workflows/storeveu-release.yml
+# Fork:   https://github.com/Fortune-Technology/storeveu-support-agent  (PUBLIC — AGPL)
+# Signing: SSL.com eSigner (cloud HSM) via the official sslcom/esigner-codesign
+#
+# Toolchain pins below are RustDesk's OWN, taken verbatim from
+# rustdesk/rustdesk@1.4.6 .github/workflows/flutter-build.yml (Rust 1.75,
+# Flutter 3.24.5, LLVM 15.0.6, vcpkg @120deac3…). This mirrors the exact
+# environment upstream tests, which is the single biggest first-run-success
+# lever — do NOT bump these without re-reading that upstream workflow.
+
+name: storeveu-release-windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write          # create the Release + attach the signed installer
+
+env:
+  # Informational: the upstream source snapshot this fork was bootstrapped
+  # from. The actual pin is the imported source on this fork's ref — CI builds
+  # THIS repo's content, not an upstream tag (that was the old bug).
+  RUSTDESK_REF: "1.4.6"
+  SCITER_RUST_VERSION: "1.75"
+  FLUTTER_VERSION: "3.24.5"
+  LLVM_VERSION: "15.0.6"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  # AGPL-3.0: refuse to produce a distributable binary unless the corresponding
+  # source (this fork) is public. SOURCE_OFFER.md points recipients here.
+  agpl-source-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require public source (AGPL-3.0)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          vis=$(gh repo view "$GITHUB_REPOSITORY" --json visibility -q .visibility)
+          echo "fork visibility: $vis"
+          if [ "$vis" != "PUBLIC" ]; then
+            echo "::error::AGPL-3.0: corresponding source must be PUBLIC before release"
+            exit 1
+          fi
+
+  build:
+    needs: agpl-source-gate
+    runs-on: windows-latest
+    steps:
+      # Build THIS fork's ref (the tag the user pushed) WITH submodules —
+      # hbb_common is a submodule in 1.4.x. NO `ref:` override (the old
+      # template pinned upstream's 1.4.6 tag, which has none of our files).
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Rust ${{ env.SCITER_RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.SCITER_RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: LLVM ${{ env.LLVM_VERSION }}
+        id: llvm
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: vcpkg (pinned to rustdesk's commit)
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+
+      - name: Apply Storeveu branding + server pin
+        shell: pwsh
+        run: ./branding/apply-branding.ps1
+
+      - name: Build RustDesk (Windows / Flutter)
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          LIBCLANG_PATH: ${{ steps.llvm.outputs.LLVM_PATH }}\bin
+        run: ./build-rustdesk-windows.ps1
+
+      # Cloud-HSM EV code-signing — SSL.com eSigner (EV cert never leaves their
+      # vault). 4 repo secrets required (see foot of file).
+      - name: Code-sign (SSL.com eSigner)
+        uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.ES_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/dist/StoreveuSupportSetup.exe
+          output_path: ${{ github.workspace }}/dist/signed
+          malware_block: false
+          environment_name: PROD
+          override: true
+
+      - name: Verify signature
+        shell: pwsh
+        run: signtool verify /pa /v dist/signed/StoreveuSupportSetup.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storeveu-support-windows
+          path: dist/signed/StoreveuSupportSetup.exe
+          if-no-files-found: error
+
+      # On a v* tag, publish a Release so the cashier-app distribution / stores
+      # can fetch the signed installer at a stable URL.
+      - name: Publish Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/signed/StoreveuSupportSetup.exe
+          name: "Storeveu Support ${{ github.ref_name }}"
+          body: |
+            Signed Storeveu Support agent (RustDesk ${{ env.RUSTDESK_REF }} base,
+            server-pinned to support-relay.storeveu.com).
+            Corresponding source: this public repository (AGPL-3.0).
+          draft: false
+          prerelease: false
+
+# Required repo secrets (Settings → Secrets and variables → Actions), all from
+# the SSL.com account / eSigner:
+#   ES_USERNAME       SSL.com account username
+#   ES_PASSWORD       SSL.com account password
+#   ES_CREDENTIAL_ID  eSigner credential/cert ID  (SSL.com → eSigner)
+#   ES_TOTP_SECRET    base32 TOTP secret          (SSL.com → eSigner → Automate)
