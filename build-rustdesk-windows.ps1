@@ -33,7 +33,10 @@ foreach ($v in 'RENDEZVOUS_SERVER', 'RS_PUB_KEY') {
 #    resolve automatically - run the manifest install (idempotent) as a safety
 #    net rather than hand-listing packages (the old list drifts per release).
 if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set (CI run-vcpkg step missing)" }
-& "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static
+# --host-triplet matches target so that "host: true" manifest deps (ffmpeg,
+# mfx-dispatch) are also installed to x64-windows-static, where hwcodec
+# build.rs expects to find libavutil/pixfmt.h.
+& "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static --host-triplet x64-windows-static
 if ($LASTEXITCODE -ne 0) { throw "vcpkg manifest install failed" }
 
 # 4. Build - RustDesk's tested 1.4.6 Windows Flutter command (sans skip-pack).
