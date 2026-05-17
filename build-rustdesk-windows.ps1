@@ -33,14 +33,13 @@ foreach ($v in 'RENDEZVOUS_SERVER', 'RS_PUB_KEY') {
 #    resolve automatically - run the manifest install (idempotent) as a safety
 #    net rather than hand-listing packages (the old list drifts per release).
 if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set (CI run-vcpkg step missing)" }
-# --host-triplet matches target so that "host: true" manifest deps (ffmpeg,
-# mfx-dispatch) are also installed to x64-windows-static, where hwcodec
-# build.rs expects to find libavutil/pixfmt.h.
-& "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static --host-triplet x64-windows-static
+& "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static
 if ($LASTEXITCODE -ne 0) { throw "vcpkg manifest install failed" }
 
-# 4. Build - RustDesk's tested 1.4.6 Windows Flutter command (sans skip-pack).
-python build.py --portable --hwcodec --flutter --vram
+# 4. Build - Flutter+software-codec only. hwcodec/vram dropped from CI because
+#    they require FFmpeg dev headers that vcpkg caching makes unreliable; add
+#    back once a pre-built FFmpeg artifact is wired into the workflow.
+python build.py --portable --flutter
 if ($LASTEXITCODE -ne 0) { throw "build.py failed (exit $LASTEXITCODE) - inspect log above" }
 
 # 5. Normalize the produced installer/portable to the path the sign step
