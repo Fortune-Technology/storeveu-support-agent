@@ -56,9 +56,12 @@ cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --loc
 if ($LASTEXITCODE -ne 0) { throw "cargo install flutter_rust_bridge_codegen failed" }
 Push-Location flutter
 try {
-  # rustdesk 1.4.6 bridge.yml pins extended_text 14.0.0 -> 13.0.0 before pub get
-  (Get-Content pubspec.yaml) -replace 'extended_text: 14\.0\.0', 'extended_text: 13.0.0' |
-    Set-Content pubspec.yaml
+  # Do NOT downgrade extended_text here. rustdesk's bridge.yml pins it
+  # 14.0.0 -> 13.0.0, but ONLY because that codegen job runs Flutter 3.22.3.
+  # We run codegen AND `flutter build windows` in one job on Flutter 3.24.5,
+  # where rustdesk's pinned extended_text 14.0.0 is required - 13.0.0 breaks
+  # the Windows build with a TextOverflowMixin.layoutInlineChildren override
+  # error (regressed v1.0.8). codegen itself is unaffected by this package.
   flutter pub get
   if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed" }
 }
