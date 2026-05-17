@@ -42,13 +42,38 @@ if (-not (Test-Path 'vcpkg.json')) {
 & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static --x-install-root="$env:VCPKG_ROOT\installed"
 if ($LASTEXITCODE -ne 0) { throw "vcpkg manifest install failed" }
 
-# 4. Build - Flutter+software-codec only. hwcodec/vram dropped from CI because
+# 4. flutter_rust_bridge codegen. RustDesk gitignores src/bridge_generated.rs
+#    + flutter/lib/generated_bridge.dart and regenerates them in CI (their
+#    .github/workflows/bridge.yml) - build.py does NOT. Without this,
+#    `cargo build --features flutter --lib` fails: "file not found for module
+#    bridge_generated" + "EventToUI: IntoIntoDart". Versions are pinned to
+#    rustdesk 1.4.6 bridge.yml (cargo-expand 1.0.95, frb codegen 1.80.1).
+#    Do NOT remove - its absence regressed every build through v1.0.7.
+$env:PATH = "$(Join-Path $env:USERPROFILE '.cargo\bin');$env:PATH"
+cargo install cargo-expand --version 1.0.95 --locked
+if ($LASTEXITCODE -ne 0) { throw "cargo install cargo-expand failed" }
+cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked
+if ($LASTEXITCODE -ne 0) { throw "cargo install flutter_rust_bridge_codegen failed" }
+Push-Location flutter
+try {
+  # rustdesk 1.4.6 bridge.yml pins extended_text 14.0.0 -> 13.0.0 before pub get
+  (Get-Content pubspec.yaml) -replace 'extended_text: 14\.0\.0', 'extended_text: 13.0.0' |
+    Set-Content pubspec.yaml
+  flutter pub get
+  if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed" }
+}
+finally { Pop-Location }
+flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
+if ($LASTEXITCODE -ne 0) { throw "flutter_rust_bridge_codegen failed" }
+if (-not (Test-Path 'src/bridge_generated.rs')) { throw "codegen succeeded but src/bridge_generated.rs missing" }
+
+# 5. Build - Flutter+software-codec only. hwcodec/vram dropped from CI because
 #    they require FFmpeg dev headers that vcpkg caching makes unreliable; add
 #    back once a pre-built FFmpeg artifact is wired into the workflow.
 python build.py --portable --flutter
 if ($LASTEXITCODE -ne 0) { throw "build.py failed (exit $LASTEXITCODE) - inspect log above" }
 
-# 5. Normalize the produced installer/portable to the path the sign step
+# 6. Normalize the produced installer/portable to the path the sign step
 #    wants. RustDesk's portable build emits the self-installing exe; names
 #    vary by release (*-install.exe, rustdesk-<ver>.exe, *setup*.exe). Search
 #    the known output roots, newest first; fail loudly if nothing materialized.

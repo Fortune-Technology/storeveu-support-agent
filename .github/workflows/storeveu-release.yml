@@ -20,6 +20,9 @@ permissions:
   contents: write          # create the Release + attach the signed installer
 
 env:
+  # Informational: the upstream source snapshot this fork was bootstrapped
+  # from. The actual pin is the imported source on this fork's ref — CI builds
+  # THIS repo's content, not an upstream tag (that was the old bug).
   RUSTDESK_REF: "1.4.6"
   SCITER_RUST_VERSION: "1.75"
   FLUTTER_VERSION: "3.24.5"
@@ -46,6 +49,9 @@ jobs:
     needs: agpl-source-gate
     runs-on: windows-latest
     steps:
+      # Build THIS fork's ref (the tag the user pushed) WITH submodules —
+      # hbb_common is a submodule in 1.4.x. NO `ref:` override (the old
+      # template pinned upstream's 1.4.6 tag, which has none of our files).
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -84,14 +90,11 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      # appendedCacheKey: bump the suffix (v4, v5…) to force a clean vcpkg
-      # install if packages end up missing from x64-windows-static.
       - name: vcpkg (pinned to rustdesk's commit)
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
-          appendedCacheKey: "v4"
 
       - name: Apply Storeveu branding + server pin
         shell: pwsh
@@ -105,9 +108,26 @@ jobs:
 
         run: ./build-rustdesk-windows.ps1
 
-      # Cloud-HSM EV code-signing — SSL.com eSigner (EV cert never leaves their
-      # vault). 4 repo secrets required (see foot of file).
+      # Code-signing is OPTIONAL. Probe whether all 4 SSL.com eSigner secrets
+      # are set and export HAVE_SIGNING; the sign/verify steps below are gated
+      # on it. Without secrets the build still publishes an UNSIGNED installer
+      # (wire signing in as a fast-follow once the eSigner account is ready).
+      - name: Detect signing secrets
+        shell: pwsh
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          ES_CREDENTIAL_ID: ${{ secrets.ES_CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: |
+          $have = [bool]$env:ES_USERNAME -and [bool]$env:ES_PASSWORD -and [bool]$env:ES_CREDENTIAL_ID -and [bool]$env:ES_TOTP_SECRET
+          "HAVE_SIGNING=$($have.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "HAVE_SIGNING=$have"
+
+      # Cloud-HSM EV code-signing — SSL.com eSigner (EV cert never leaves
+      # their vault). OPTIONAL: skipped unless all 4 ES_* secrets are set.
       - name: Code-sign (SSL.com eSigner)
+        if: env.HAVE_SIGNING == 'true'
         uses: sslcom/esigner-codesign@develop
         with:
           command: sign
@@ -122,24 +142,43 @@ jobs:
           override: true
 
       - name: Verify signature
+        if: env.HAVE_SIGNING == 'true'
         shell: pwsh
         run: signtool verify /pa /v dist/signed/StoreveuSupportSetup.exe
+
+      # Pick the signed exe if signing ran, else the unsigned one produced by
+      # build-rustdesk-windows.ps1. ARTIFACT/SIGNED feed upload + release.
+      - name: Resolve artifact
+        shell: pwsh
+        run: |
+          if (Test-Path dist/signed/StoreveuSupportSetup.exe) {
+            $p = 'dist/signed/StoreveuSupportSetup.exe'; $signed = 'true'
+          } else {
+            $p = 'dist/StoreveuSupportSetup.exe'; $signed = 'false'
+          }
+          if (-not (Test-Path $p)) { throw "no installer produced ($p)" }
+          "ARTIFACT=$p"    | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "SIGNED=$signed" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "artifact=$p signed=$signed"
 
       - uses: actions/upload-artifact@v4
         with:
           name: storeveu-support-windows
-          path: dist/signed/StoreveuSupportSetup.exe
+          path: ${{ env.ARTIFACT }}
           if-no-files-found: error
 
+      # On a v* tag, publish a Release so the cashier-app distribution / stores
+      # can fetch the installer at a stable URL (signed once eSigner is set up).
       - name: Publish Release (tag builds only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/signed/StoreveuSupportSetup.exe
+          files: ${{ env.ARTIFACT }}
           name: "Storeveu Support ${{ github.ref_name }}"
           body: |
-            Signed Storeveu Support agent (RustDesk ${{ env.RUSTDESK_REF }} base,
+            Storeveu Support agent (RustDesk ${{ env.RUSTDESK_REF }} base,
             server-pinned to support-relay.storeveu.com).
+            Signed: ${{ env.SIGNED }} — unsigned builds are pending SSL.com eSigner setup.
             Corresponding source: this public repository (AGPL-3.0).
           draft: false
           prerelease: false
