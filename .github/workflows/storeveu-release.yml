@@ -20,9 +20,6 @@ permissions:
   contents: write          # create the Release + attach the signed installer
 
 env:
-  # Informational: the upstream source snapshot this fork was bootstrapped
-  # from. The actual pin is the imported source on this fork's ref — CI builds
-  # THIS repo's content, not an upstream tag (that was the old bug).
   RUSTDESK_REF: "1.4.6"
   SCITER_RUST_VERSION: "1.75"
   FLUTTER_VERSION: "3.24.5"
@@ -49,9 +46,6 @@ jobs:
     needs: agpl-source-gate
     runs-on: windows-latest
     steps:
-      # Build THIS fork's ref (the tag the user pushed) WITH submodules —
-      # hbb_common is a submodule in 1.4.x. NO `ref:` override (the old
-      # template pinned upstream's 1.4.6 tag, which has none of our files).
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -79,11 +73,19 @@ jobs:
         shell: pwsh
         run: choco install llvm -y --no-progress
 
+      # sccache caches Rust compilation results on GHA — cuts Rust build from
+      # ~25 min to ~2 min on cache hits.
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+
+      # appendedCacheKey: bump the suffix (v4, v5…) to force a clean vcpkg
+      # install if packages end up missing from x64-windows-static.
       - name: vcpkg (pinned to rustdesk's commit)
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          appendedCacheKey: "v4"
 
       - name: Apply Storeveu branding + server pin
         shell: pwsh
@@ -94,6 +96,8 @@ jobs:
         env:
           VCPKG_ROOT: C:\vcpkg
           LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
         run: ./build-rustdesk-windows.ps1
 
       # Cloud-HSM EV code-signing — SSL.com eSigner (EV cert never leaves their
@@ -122,8 +126,6 @@ jobs:
           path: dist/signed/StoreveuSupportSetup.exe
           if-no-files-found: error
 
-      # On a v* tag, publish a Release so the cashier-app distribution / stores
-      # can fetch the signed installer at a stable URL.
       - name: Publish Release (tag builds only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
