@@ -95,7 +95,7 @@ jobs:
         shell: pwsh
         env:
           VCPKG_ROOT: C:\vcpkg
-          LIBCLANG_PATH: ${{ steps.llvm.outputs.LLVM_PATH }}\bin
+          LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
         run: ./build-rustdesk-windows.ps1
 
       # Cloud-HSM EV code-signing — SSL.com eSigner (EV cert never leaves their
