@@ -28,12 +28,18 @@ foreach ($v in 'RENDEZVOUS_SERVER', 'RS_PUB_KEY') {
   Write-Host "    $v = $val"
 }
 
-# 3. vcpkg deps. The CI workflow pins vcpkg (lukka/run-vcpkg @ rustdesk's
-#    commit) and sets VCPKG_ROOT; RustDesk ships a vcpkg.json manifest so deps
-#    resolve automatically - run the manifest install (idempotent) as a safety
-#    net rather than hand-listing packages (the old list drifts per release).
+# 3. vcpkg deps - manifest mode (RustDesk ships a root vcpkg.json). vcpkg
+#    installs to .\vcpkg_installed\ by default, but rustdesk crates
+#    (magnum-opus etc.) hard-look in $VCPKG_ROOT\installed - so
+#    --x-install-root=$VCPKG_ROOT\installed is MANDATORY: without it the build
+#    dies ~38min in at magnum-opus, "opus/opus_multistream.h file not found".
+#    Do NOT drop this flag - its removal regressed every build v1.0.1-v1.0.6.
+#    Assert vcpkg.json is in CWD; a manifest install elsewhere is a silent no-op.
 if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set (CI run-vcpkg step missing)" }
-& "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static
+if (-not (Test-Path 'vcpkg.json')) {
+  throw "vcpkg.json not in CWD ($(Get-Location)) - manifest install would be a silent no-op; run from the fork root"
+}
+& "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static --x-install-root="$env:VCPKG_ROOT\installed"
 if ($LASTEXITCODE -ne 0) { throw "vcpkg manifest install failed" }
 
 # 4. Build - Flutter+software-codec only. hwcodec/vram dropped from CI because
