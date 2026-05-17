@@ -75,12 +75,9 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
-      - name: LLVM ${{ env.LLVM_VERSION }}
-        id: llvm
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: ${{ env.LLVM_VERSION }}
-          directory: "C:/Program Files/LLVM"
+      - name: LLVM ${{ env.LLVM_VERSION }} (choco — ships libclang.dll)
+        shell: pwsh
+        run: choco install llvm -y --no-progress
 
       - name: vcpkg (pinned to rustdesk's commit)
         uses: lukka/run-vcpkg@v11
