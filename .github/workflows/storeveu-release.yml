@@ -80,6 +80,7 @@ jobs:
         uses: KyleMayes/install-llvm-action@v1
         with:
           version: ${{ env.LLVM_VERSION }}
+          directory: "C:/Program Files/LLVM"
 
       - name: vcpkg (pinned to rustdesk's commit)
         uses: lukka/run-vcpkg@v11
