@@ -1,6 +1,5 @@
 /build
 /target
-.vscode
 .idea
 .DS_Store
 .env
@@ -46,7 +45,6 @@ flatpak/*.flatpak
 lib/generated_bridge.dart
 # vscode devcontainer
 .gitconfig
-.vscode-server/
 .ssh
 .devcontainer/.*
 # build cache in examples
@@ -56,3 +54,7 @@ vcpkg_installed
 flutter/lib/generated_plugin_registrant.dart
 libsciter.dylib
 flutter/web/
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
+branch_structure.json
