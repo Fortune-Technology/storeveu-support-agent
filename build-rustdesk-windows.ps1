@@ -35,6 +35,27 @@ if ($pwnew -eq $pwsrc -or $pwnew -notmatch '(?s)mode == "click".*ApproveMode::Cl
 Set-Content $pwf -Value $pwnew -NoNewline
 Write-Host "==> consent: approve_mode() default Both -> Click patched ($pwf)"
 
+# 1c. SERVER PIN (the REAL one). RustDesk 1.4.6 takes the rendezvous server
+#     + key from hard-coded consts in hbb_common/src/config.rs, NOT from the
+#     RENDEZVOUS_SERVER / RS_PUB_KEY env vars (nothing reads them via
+#     option_env!). So apply-branding's env pin AND step 2 below are no-ops;
+#     this is what actually points the binary at support-relay.storeveu.com.
+#     Patch after submodule checkout, before compile. HARD: a build pointing
+#     at RustDesk's PUBLIC server must never ship. Verified vs pinned source.
+$cfg = 'libs/hbb_common/src/config.rs'
+if (-not (Test-Path $cfg)) { throw "hbb_common not checked out ($cfg) - submodule step failed" }
+$cfgsrc = Get-Content $cfg -Raw
+$p1 = '(pub const RENDEZVOUS_SERVERS: &\[&str\] = &\[")[^"]*("\];)'
+$p2 = '(pub const RS_PUB_KEY: &str = ")[^"]*(";)'
+if ($cfgsrc -notmatch $p1) { throw "RENDEZVOUS_SERVERS const anchor not found in $cfg - hbb_common drifted; refusing to ship a public-server build" }
+if ($cfgsrc -notmatch $p2) { throw "RS_PUB_KEY const anchor not found in $cfg - hbb_common drifted; refusing to ship a public-server build" }
+$cfgnew = [regex]::Replace($cfgsrc, $p1, '${1}support-relay.storeveu.com${2}')
+$cfgnew = [regex]::Replace($cfgnew, $p2, '${1}Idwk2r8dLqiPRbFE1OexmsFtAcdn2huqqF9k17DcqY0=${2}')
+if ($cfgnew -match 'rs-ny\.rustdesk\.com' -or $cfgnew -match 'OeVuKk5nlHiXp') { throw "server-pin patch left RustDesk public server/key in $cfg - refusing to build" }
+if ($cfgnew -eq $cfgsrc) { throw "server-pin patch made no change - refusing to build" }
+Set-Content $cfg -Value $cfgnew -NoNewline
+Write-Host "==> server pin: RENDEZVOUS_SERVERS + RS_PUB_KEY -> support-relay.storeveu.com (config.rs patched)"
+
 # 2. The compile-time pin MUST already be Machine scope (apply-branding.ps1).
 #    Re-read from Machine scope into THIS process - the classic rustdesk build
 #    gotcha (#7108/#10599) is a process not inheriting it.
