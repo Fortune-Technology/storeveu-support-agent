@@ -47,7 +47,11 @@ jobs:
 
   build:
     needs: agpl-source-gate
-    runs-on: windows-latest
+    # Pinned to windows-2022 (VS 2022). windows-latest migrated off VS 2019, so
+    # Flutter/CMake's "Visual Studio 16 2019" generator could no longer find an
+    # instance and `flutter build windows` failed. windows-2022 ships VS 2022 ->
+    # Flutter uses the "Visual Studio 17 2022" generator. (Was windows-latest.)
+    runs-on: windows-2022
     steps:
       # Build THIS fork's ref (the tag the user pushed) WITH submodules —
       # hbb_common is a submodule in 1.4.x. NO `ref:` override (the old
