@@ -66,6 +66,16 @@ Invoke-TryPatch -File 'Cargo.toml' -Pattern '(?m)^description\s*=\s*".*"' -Repla
 # "RustDesk" literal rebrands the visible product name in the English UI.
 Invoke-TryPatch -File 'src/lang/en.rs' -Pattern '"RustDesk"' -Replacement "`"$APPNAME`"" -Why 'English UI product name'
 
+# Disable the public auto-update check (the pink "new version of RustDesk
+# available" banner). src/common.rs::check_software_update() spawns a thread
+# running do_check_software_update(), which polls the PUBLIC rustdesk release
+# endpoint and sets SOFTWARE_UPDATE_URL; the Flutter home page shows the banner
+# whenever that URL is non-empty. A private, server-pinned fork must never
+# advertise upstream releases - neuter the spawn so the URL stays empty.
+# Pattern = the verified 1.4.6 line (whitespace-tolerant). Best-effort: a miss
+# only means the banner persists, so WARN + continue.
+Invoke-TryPatch -File 'src/common.rs' -Pattern 'std::thread::spawn\(move \|\|\s*allow_err!\(do_check_software_update\(\)\)\)\s*;' -Replacement '/* [storeveu] public auto-update check disabled (no upstream version banner) */' -Why 'disable auto-update version banner'
+
 # Icons / tray art - VERIFIED paths @1.4.6: res/icon.ico, res/tray-icon.ico,
 # flutter/windows/runner/resources/app_icon.ico all exist; flutter/assets/ is
 # a declared asset dir. Drop Storeveu art over them IF the fork ships the assets;
