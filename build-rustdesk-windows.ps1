@@ -49,12 +49,17 @@ $p1 = '(pub const RENDEZVOUS_SERVERS: &\[&str\] = &\[")[^"]*("\];)'
 $p2 = '(pub const RS_PUB_KEY: &str = ")[^"]*(";)'
 if ($cfgsrc -notmatch $p1) { throw "RENDEZVOUS_SERVERS const anchor not found in $cfg - hbb_common drifted; refusing to ship a public-server build" }
 if ($cfgsrc -notmatch $p2) { throw "RS_PUB_KEY const anchor not found in $cfg - hbb_common drifted; refusing to ship a public-server build" }
-$cfgnew = [regex]::Replace($cfgsrc, $p1, '${1}support-relay.storeveu.com${2}')
-$cfgnew = [regex]::Replace($cfgnew, $p2, '${1}Idwk2r8dLqiPRbFE1OexmsFtAcdn2huqqF9k17DcqY0=${2}')
+# v1.4.2: pinned to the DEDICATED relay on :443 (rendezvous, tcp+udp; NAT test
+# derives :442; relay advertised by hbbs as support.storeveu.com:80) - ports
+# strict store networks allow, so agents no longer need the wstunnel chain
+# wherever outbound UDP 443 passes. host:port is honored by
+# get_rendezvous_server() (only appends :21116 when no port present, verified).
+$cfgnew = [regex]::Replace($cfgsrc, $p1, '${1}support.storeveu.com:443${2}')
+$cfgnew = [regex]::Replace($cfgnew, $p2, '${1}xW7LgoDQ9p5FVQQbA35lzAAEQ03W0hpJRa4LE220eeU=${2}')
 if ($cfgnew -match 'rs-ny\.rustdesk\.com' -or $cfgnew -match 'OeVuKk5nlHiXp') { throw "server-pin patch left RustDesk public server/key in $cfg - refusing to build" }
 if ($cfgnew -eq $cfgsrc) { throw "server-pin patch made no change - refusing to build" }
 Set-Content $cfg -Value $cfgnew -NoNewline
-Write-Host "==> server pin: RENDEZVOUS_SERVERS + RS_PUB_KEY -> support-relay.storeveu.com (config.rs patched)"
+Write-Host "==> server pin: RENDEZVOUS_SERVERS + RS_PUB_KEY -> support.storeveu.com:443 (config.rs patched)"
 
 # 2. The compile-time pin MUST already be Machine scope (apply-branding.ps1).
 #    Re-read from Machine scope into THIS process - the classic rustdesk build

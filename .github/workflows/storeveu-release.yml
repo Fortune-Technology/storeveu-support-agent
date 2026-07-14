@@ -181,7 +181,7 @@ jobs:
           name: "Storeveu Support ${{ github.ref_name }}"
           body: |
             Storeveu Support agent (RustDesk ${{ env.RUSTDESK_REF }} base,
-            server-pinned to support-relay.storeveu.com).
+            server-pinned to support.storeveu.com:443, relay :80 - the dedicated tunnel-free server).
             Signed: ${{ env.SIGNED }} — unsigned builds are pending SSL.com eSigner setup.
             Corresponding source: this public repository (AGPL-3.0).
           draft: false

@@ -25,8 +25,12 @@
 # Values mirror remote-support/agent/branding/storeveu-support.toml (keep in sync).
 $ErrorActionPreference = 'Stop'
 
-$RENDEZVOUS = 'support-relay.storeveu.com'
-$PUBKEY     = 'Idwk2r8dLqiPRbFE1OexmsFtAcdn2huqqF9k17DcqY0='
+# NOTE: these env vars are a legacy NO-OP for the pin (RustDesk 1.4.6 reads no
+# RENDEZVOUS_SERVER/RS_PUB_KEY env vars). The REAL pin is the config.rs
+# source-constant rewrite in build-rustdesk-windows.ps1 step 1c. Values kept
+# in sync so build logs don't lie.
+$RENDEZVOUS = 'support.storeveu.com:443'
+$PUBKEY     = 'xW7LgoDQ9p5FVQQbA35lzAAEQ03W0hpJRa4LE220eeU='
 $APPNAME    = 'Storeveu Support'
 
 # ---- (1) Compile-time server/key pin (Machine scope - CRITICAL, hard) ----
