@@ -11,17 +11,17 @@ company         = "Storeveu"
 # Replace upstream RustDesk icons/logo with Storeveu assets in the fork:
 #   ./branding/assets/icon.ico, logo.png  (added in the fork repo)
 
-[server]                       # DEDICATED relay (74.208.69.12), addressed by hostname (v1.4.2+)
+[server]                       # DEDICATED relay (74.208.69.12), addressed by hostname (v2.0.1+)
 rendezvous      = "support.storeveu.com:443"
 relay           = "support.storeveu.com:80"
 public_key      = "xW7LgoDQ9p5FVQQbA35lzAAEQ03W0hpJRa4LE220eeU="
 # 443 (rendezvous tcp+udp; NAT test derives :442) + 80 (relay) are ports strict
-# store networks allow outbound, so v1.4.2+ agents need NO wstunnel wherever
+# store networks allow outbound, so v2.0.1+ agents need NO wstunnel wherever
 # outbound UDP 443 passes. Hostname (not raw IP) so a future server move = a
 # DNS edit, no agent re-ship. Server bootstrap: monorepo
 # remote-support/server/setup-dedicated.sh <hostname>.
 # Hard-coded so a store cannot repoint it and needs zero setup.
-# (Legacy fleet <= v1.4.1: support-relay.storeveu.com + old key, untouched.)
+# (Legacy fleet = the entire v1.x line: support-relay.storeveu.com + old key, untouched.)
 allow_user_override = false
 
 [access]                       # PCI: consent-only, no unattended access
