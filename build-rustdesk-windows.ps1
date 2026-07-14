@@ -49,7 +49,7 @@ $p1 = '(pub const RENDEZVOUS_SERVERS: &\[&str\] = &\[")[^"]*("\];)'
 $p2 = '(pub const RS_PUB_KEY: &str = ")[^"]*(";)'
 if ($cfgsrc -notmatch $p1) { throw "RENDEZVOUS_SERVERS const anchor not found in $cfg - hbb_common drifted; refusing to ship a public-server build" }
 if ($cfgsrc -notmatch $p2) { throw "RS_PUB_KEY const anchor not found in $cfg - hbb_common drifted; refusing to ship a public-server build" }
-# v1.4.2: pinned to the DEDICATED relay on :443 (rendezvous, tcp+udp; NAT test
+# v2.0.1 (new-server generation): pinned to the DEDICATED relay on :443 (rendezvous, tcp+udp; NAT test
 # derives :442; relay advertised by hbbs as support.storeveu.com:80) - ports
 # strict store networks allow, so agents no longer need the wstunnel chain
 # wherever outbound UDP 443 passes. host:port is honored by
