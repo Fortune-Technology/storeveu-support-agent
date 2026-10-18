@@ -16,11 +16,12 @@ Write-Host "==> Storeveu Support agent build (RustDesk 1.4.6, Windows/Flutter)"
 git submodule update --init --recursive
 if ($LASTEXITCODE -ne 0) { throw "submodule init failed" }
 
-# 1b. Consent model = password OR on-site Accept (approve-mode 'password-click').
+# 1b. Consent model = the installer's per-store approve-mode ('click' or 'password-click').
 #     NO approve_mode() patch, on purpose. Through v2.0.1 this step rewrote the
 #     hbb_common default Both -> Click, but approve_mode() only matches
 #     "password" and "click"; everything else, INCLUDING the 'password-click'
-#     the Storeveu installer writes, lands in that default. So every register
+#     the Storeveu installer writes for stores opted into unattended access,
+#     lands in that default. (Consent-only stores get 'click'.) So every register
 #     ran Accept-only, refused the baked support password ("No Password
 #     Access"), and the controller's password box was replaced by the bare
 #     wait screen. Stock Both = password-click. Do not re-add the patch.
