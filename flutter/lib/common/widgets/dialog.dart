@@ -1326,15 +1326,17 @@ void showWaitAcceptDialog(SessionID sessionId, String type, String title,
     }
 
     // Storeveu: this replaces the password box only when the register answered
-    // "No Password Access", so say why there is no box instead of just waiting.
+    // "No Password Access" (a consent-only store, or an agent older than v2.0.3),
+    // so say why there is no box instead of just waiting.
     return CustomAlertDialog(
       title: null,
       content: msgboxContent(
           type,
           'Waiting for approval',
           'Waiting for someone at the register to tap Accept. This register '
-              'has no support password set, so Accept on site is the only way '
-              'in. Re-run the latest Storeveu Support installer on it to add one.'),
+              'only allows on-site Accept, so a support password will not work '
+              'here. Password access needs the store to allow unattended support '
+              'and a current Storeveu Support install on the register.'),
       actions: [
         dialogButton('Cancel', onPressed: onCancel, isOutline: true),
       ],
