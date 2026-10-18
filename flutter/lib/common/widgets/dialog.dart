@@ -818,12 +818,16 @@ void wrongPasswordDialog(SessionID sessionId,
   });
 }
 
+// Storeveu: a register runs approve-mode password-click, so while this box is up
+// the register is also showing its Accept prompt. One screen says both, so the
+// password box no longer reads as "the only way in".
 void enterPasswordDialog(
     SessionID sessionId, OverlayDialogManager dialogManager) async {
   await _connectDialog(
     sessionId,
     dialogManager,
     passwordController: TextEditingController(),
+    waitingForAccept: true,
   );
 }
 
@@ -866,6 +870,7 @@ _connectDialog(
   TextEditingController? passwordController,
   String? osAccountDescTip,
   bool canRememberAccount = true,
+  bool waitingForAccept = false,
 }) async {
   final errUsername = ''.obs;
   var rememberPassword = false;
@@ -1007,7 +1012,10 @@ _connectDialog(
       }
       return Column(
         children: [
-          descWidget(translate('verify_rustdesk_password_tip')),
+          descWidget(waitingForAccept
+              ? 'Waiting for someone at the register to tap Accept. '
+                  'Or enter the support password to connect now.'
+              : translate('verify_rustdesk_password_tip')),
           PasswordWidget(
             controller: passwordController,
             autoFocus: osUsernameController == null,
@@ -1029,8 +1037,15 @@ _connectDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.password_rounded, color: MyTheme.accent),
-          Text(translate('Password Required')).paddingOnly(left: 10),
+          Icon(
+              waitingForAccept
+                  ? Icons.hourglass_top
+                  : Icons.password_rounded,
+              color: MyTheme.accent),
+          Text(waitingForAccept
+                  ? 'Waiting for approval'
+                  : translate('Password Required'))
+              .paddingOnly(left: 10),
         ],
       ),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1310,9 +1325,16 @@ void showWaitAcceptDialog(SessionID sessionId, String type, String title,
       closeConnection();
     }
 
+    // Storeveu: this replaces the password box only when the register answered
+    // "No Password Access", so say why there is no box instead of just waiting.
     return CustomAlertDialog(
       title: null,
-      content: msgboxContent(type, title, text),
+      content: msgboxContent(
+          type,
+          'Waiting for approval',
+          'Waiting for someone at the register to tap Accept. This register '
+              'has no support password set, so Accept on site is the only way '
+              'in. Re-run the latest Storeveu Support installer on it to add one.'),
       actions: [
         dialogButton('Cancel', onPressed: onCancel, isOutline: true),
       ],

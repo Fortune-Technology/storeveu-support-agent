@@ -16,24 +16,14 @@ Write-Host "==> Storeveu Support agent build (RustDesk 1.4.6, Windows/Flutter)"
 git submodule update --init --recursive
 if ($LASTEXITCODE -ne 0) { throw "submodule init failed" }
 
-# 1b. Consent model = cashier Accept, no password (D3 revised / D2=B).
-#     hbb_common password_security::approve_mode() defaults to Both; with
-#     RustDesk's auto-generated temporary password that still demands a code.
-#     The clean custom.txt settings path is signature-gated by RustDesk's
-#     private key (unavailable to an AGPL fork), so patch the pinned
-#     hbb_common default Both -> Click HERE - after the submodule checkout
-#     above (a later `submodule update` would clobber an earlier edit) and
-#     before compile. HARD (throw, not best-effort): a wrong-consent agent
-#     must never ship. Pinned hbb_common @48c37de3 so the pattern is stable.
-$pwf = 'libs/hbb_common/src/password_security.rs'
-if (-not (Test-Path $pwf)) { throw "hbb_common not checked out ($pwf) - submodule step failed" }
-$pwsrc = Get-Content $pwf -Raw
-$pwpat = '(?s)(else if mode == "click" \{\s*ApproveMode::Click\s*\}\s*else \{\s*)ApproveMode::Both(\s*\})'
-if ($pwsrc -notmatch $pwpat) { throw "approve_mode() Both->Click anchor not found in $pwf - hbb_common drifted; refusing to build a wrong-consent agent" }
-$pwnew = [regex]::Replace($pwsrc, $pwpat, '${1}ApproveMode::Click${2}')
-if ($pwnew -eq $pwsrc -or $pwnew -notmatch '(?s)mode == "click".*ApproveMode::Click.*else \{\s*ApproveMode::Click') { throw "approve_mode patch did not take - refusing to build" }
-Set-Content $pwf -Value $pwnew -NoNewline
-Write-Host "==> consent: approve_mode() default Both -> Click patched ($pwf)"
+# 1b. Consent model = password OR on-site Accept (approve-mode 'password-click').
+#     NO approve_mode() patch, on purpose. Through v2.0.1 this step rewrote the
+#     hbb_common default Both -> Click, but approve_mode() only matches
+#     "password" and "click"; everything else, INCLUDING the 'password-click'
+#     the Storeveu installer writes, lands in that default. So every register
+#     ran Accept-only, refused the baked support password ("No Password
+#     Access"), and the controller's password box was replaced by the bare
+#     wait screen. Stock Both = password-click. Do not re-add the patch.
 
 # 1c. SERVER PIN (the REAL one). RustDesk 1.4.6 takes the rendezvous server
 #     + key from hard-coded consts in hbb_common/src/config.rs, NOT from the
